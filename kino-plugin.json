@@ -1,0 +1,50 @@
+{
+  "id": "nuvio-sports",
+  "name": "Nuvio Sports",
+  "version": "1.0.0",
+  "apiVersion": 3,
+  "entry": "plugin.js",
+  "description": "Deportes en vivo y canales deportivos 24/7 del agregador Nuvio Live Sports, en la pestaña En vivo.",
+  "author": "xuper-plugin",
+  "icon": "icon.png",
+  "homepage": "https://github.com/xuper-plugin/kino-plugin-nuvio-sports",
+  "hosts": [
+    "nuviosports.xyz"
+  ],
+  "capabilities": [
+    "home",
+    "resolve",
+    "channels"
+  ],
+  "liveStreamHosts": "any",
+  "color": "#E5322D",
+  "settings": [
+    {
+      "key": "languages",
+      "type": "text",
+      "label": "Idiomas preferidos",
+      "default": "Spanish",
+      "hint": "En inglés, separados por comas: Spanish, English, Portuguese"
+    },
+    {
+      "key": "sports",
+      "type": "text",
+      "label": "Deportes",
+      "default": "all",
+      "hint": "all, o por comas: football, motorsport, tennis, basketball"
+    },
+    {
+      "key": "teams",
+      "type": "text",
+      "label": "Equipos favoritos",
+      "hint": "Separados por comas; suben en las listas"
+    },
+    {
+      "key": "timezone",
+      "type": "text",
+      "label": "Zona horaria",
+      "default": "UTC",
+      "hint": "Por ejemplo America/Bogota"
+    }
+  ]
+}
