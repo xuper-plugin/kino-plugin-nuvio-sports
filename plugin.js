@@ -5,15 +5,81 @@
 const HOST = "https://nuviosports.xyz";
 const PAGE = 100; // the addon answers 100 items per page and takes `skip`
 const MAX_SKIP = 1000;
-const RETRY_WINDOW_MS = 2 * 60 * 1000;
+const RETRY_WINDOW_MS = 2 * 60 * 1000; // a channel opened again within this window means the copy served did not play
+const BAD_COPY_MS = 10 * 60 * 1000;
 
-// One entry per catalog of the addon that lists something playable now ("Upcoming" lists events not yet on air).
+// One entry per catalog of the addon. `sport` is the name the "sports" setting uses; a category without one is always
+// listed. "Upcoming" lists events not on air yet: it works as a schedule, its copies appear when the event starts.
 const CATEGORIES = [
-  { id: "live", catalog: "nuvio_sports_live", title: "En vivo ahora", genre: "deportes" },
-  { id: "football", catalog: "nuvio_sports_football", title: "Fútbol", genre: "deportes" },
-  { id: "motorsport", catalog: "nuvio_sports_motorsport", title: "Motor", genre: "deportes" },
-  { id: "networks", catalog: "nuvio_sports_networks", title: "TV deportiva 24/7", genre: "deportes" },
+  { id: "live", catalog: "nuvio_sports_live", title: "catLive", genre: "deportes" },
+  { id: "upcoming", catalog: "nuvio_sports_upcoming", title: "catUpcoming", genre: "deportes" },
+  { id: "football", catalog: "nuvio_sports_football", sport: "football", title: "catFootball", genre: "deportes" },
+  { id: "basketball", catalog: "nuvio_sports_basketball", sport: "basketball", title: "catBasketball", genre: "deportes" },
+  { id: "tennis", catalog: "nuvio_sports_tennis", sport: "tennis", title: "catTennis", genre: "deportes" },
+  { id: "motorsport", catalog: "nuvio_sports_motorsport", sport: "motorsport", title: "catMotorsport", genre: "deportes" },
+  { id: "mma", catalog: "nuvio_sports_mma", sport: "mma", title: "catMma", genre: "deportes" },
+  { id: "baseball", catalog: "nuvio_sports_baseball", sport: "baseball", title: "catBaseball", genre: "deportes" },
+  { id: "hockey", catalog: "nuvio_sports_hockey", sport: "hockey", title: "catHockey", genre: "deportes" },
+  { id: "rugby", catalog: "nuvio_sports_rugby", sport: "rugby", title: "catRugby", genre: "deportes" },
+  { id: "americanfootball", catalog: "nuvio_sports_american_football", sport: "americanfootball", title: "catAmericanFootball", genre: "deportes" },
+  { id: "golf", catalog: "nuvio_sports_golf", sport: "golf", title: "catGolf", genre: "deportes" },
+  { id: "cricket", catalog: "nuvio_sports_cricket", sport: "cricket", title: "catCricket", genre: "deportes" },
+  { id: "college", catalog: "nuvio_sports_college", sport: "college", title: "catCollege", genre: "deportes" },
+  { id: "other", catalog: "nuvio_sports_other", sport: "other", title: "catOther", genre: "deportes" },
+  { id: "networks", catalog: "nuvio_sports_networks", title: "catNetworks", genre: "deportes" },
 ];
+// Catalogs whose events are searched by name (the sport catalogs are subsets of "live").
+const SEARCHED = ["live", "upcoming", "networks"];
+
+// Every text the person reads, in Spanish and English: Kino does not translate a plugin's texts. kino.lang is the
+// person's language ("es-CO"); anything that is not Spanish reads English.
+const TEXTS = {
+  es: {
+    catLive: "En vivo ahora",
+    catUpcoming: "Próximos",
+    catFootball: "Fútbol",
+    catBasketball: "Baloncesto",
+    catTennis: "Tenis",
+    catMotorsport: "Motor",
+    catMma: "MMA",
+    catBaseball: "Béisbol",
+    catHockey: "Hockey",
+    catRugby: "Rugby",
+    catAmericanFootball: "Fútbol americano",
+    catGolf: "Golf",
+    catCricket: "Críquet",
+    catCollege: "Deporte universitario",
+    catOther: "Otros deportes",
+    catNetworks: "TV deportiva 24/7",
+    unavailable: "Nuvio Sports no responde ahora. Intenta de nuevo en un rato.",
+    noSignal: "Este canal no tiene señal ahora mismo. Si el evento aún no empieza, vuelve más tarde.",
+  },
+  en: {
+    catLive: "Live now",
+    catUpcoming: "Upcoming",
+    catFootball: "Soccer",
+    catBasketball: "Basketball",
+    catTennis: "Tennis",
+    catMotorsport: "Motorsport",
+    catMma: "MMA",
+    catBaseball: "Baseball",
+    catHockey: "Hockey",
+    catRugby: "Rugby",
+    catAmericanFootball: "American football",
+    catGolf: "Golf",
+    catCricket: "Cricket",
+    catCollege: "College sports",
+    catOther: "Other sports",
+    catNetworks: "24/7 sports TV",
+    unavailable: "Nuvio Sports is not answering right now. Try again in a moment.",
+    noSignal: "This channel has no signal right now. If the event has not started yet, come back later.",
+  },
+};
+
+function t(key) {
+  const lang = String(kino.lang || "").toLowerCase().startsWith("es") ? "es" : "en";
+  return TEXTS[lang][key] || TEXTS.es[key] || key;
+}
 
 const B64 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
 
@@ -53,7 +119,7 @@ function base() {
 
 async function getJson(path) {
   const r = await kino.fetch(base() + path, { headers: { Accept: "application/json" } });
-  if (!r.ok) throw kino.error("unavailable", "Nuvio Sports respondió " + r.status);
+  if (!r.ok) throw kino.error("unavailable", "Nuvio Sports answered " + r.status, { userMessage: t("unavailable") });
   return r.json();
 }
 
@@ -71,8 +137,20 @@ export async function home() {
   return [];
 }
 
+/** The sport names the person picked (lowercase, no spaces or underscores), or null for all of them. */
+function pickedSports() {
+  const v = setting("sports", "all").toLowerCase().replace(/[\s_]+/g, "");
+  if (v === "all") return null;
+  return v.split(",").filter(Boolean);
+}
+
 export async function liveCategories() {
-  return CATEGORIES.map((c) => ({ id: c.id, title: c.title, genre: c.genre }));
+  const picked = pickedSports();
+  return CATEGORIES.filter((c) => !c.sport || !picked || picked.includes(c.sport)).map((c) => ({
+    id: c.id,
+    title: t(c.title),
+    genre: c.genre,
+  }));
 }
 
 export async function liveChannels({ categoryId, cursor }) {
@@ -92,7 +170,7 @@ export async function liveSearch({ query }) {
   const seen = new Set();
   const items = [];
   const lists = await Promise.all(
-    CATEGORIES.map((c) => getJson("/catalog/tv/" + c.catalog + "/search=" + q + ".json").then((d) => [c, d.metas || []], () => [c, []])),
+    CATEGORIES.filter((c) => SEARCHED.includes(c.id)).map((c) => getJson("/catalog/tv/" + c.catalog + "/search=" + q + ".json").then((d) => [c, d.metas || []], () => [c, []])),
   );
   for (const [c, metas] of lists) {
     for (const m of metas) {
@@ -120,19 +198,30 @@ export async function resolve(ref) {
     .map((s, i) => ({ s, i }))
     .sort((a, b) => languageRank(a.s, wanted) - languageRank(b.s, wanted) || (b.s.score || 0) - (a.s.score || 0) || a.i - b.i)
     .map((x) => x.s);
-  if (!streams.length) throw kino.error("not_found", "sin señal", { userMessage: "Este canal no tiene señal ahora mismo" });
+  if (!streams.length) throw kino.error("not_found", "no streams", { userMessage: t("noSignal") });
 
-  // Kino calls resolve again when a channel is cut: a second call soon after the first moves on to the next copy.
+  // Kino calls resolve again when a channel is cut: opening the same channel within RETRY_WINDOW_MS marks the copy
+  // served last as bad for BAD_COPY_MS, and the next one is served. When every copy is bad the memory starts over.
   const key = "try:" + ref;
-  let n = 0;
+  let bad = [];
   try {
     const last = JSON.parse(kino.storage.get(key) || "null");
-    if (last && Date.now() - last.t < RETRY_WINDOW_MS) n = last.n + 1;
-    kino.storage.set(key, JSON.stringify({ t: Date.now(), n }), { ttlMs: RETRY_WINDOW_MS });
+    if (last && Array.isArray(last.bad)) bad = last.bad.filter((x) => Date.now() - x.t < BAD_COPY_MS);
+    if (last && last.url && Date.now() - last.t < RETRY_WINDOW_MS) bad.push({ url: last.url, t: Date.now() });
   } catch {
-    n = 0;
+    bad = [];
   }
-  const pick = streams[n % streams.length];
+  let fresh = streams.filter((s) => !bad.some((x) => x.url === s.url));
+  if (!fresh.length) {
+    bad = [];
+    fresh = streams;
+  }
+  const pick = fresh[0];
+  try {
+    kino.storage.set(key, JSON.stringify({ t: Date.now(), url: pick.url, bad: bad.slice(-8) }), { ttlMs: BAD_COPY_MS });
+  } catch {
+    // the memory is a nicety: the channel plays without it
+  }
 
   const req = (pick.behaviorHints && pick.behaviorHints.proxyHeaders && pick.behaviorHints.proxyHeaders.request) || {};
   const headers = {};

@@ -1,10 +1,10 @@
 {
   "id": "nuvio-sports",
   "name": "Nuvio Sports",
-  "version": "1.0.0",
-  "apiVersion": 3,
+  "version": "1.1.0",
+  "apiVersion": 9,
   "entry": "plugin.js",
-  "description": "Deportes en vivo y canales deportivos 24/7 del agregador Nuvio Live Sports, en la pestaña En vivo.",
+  "description": "Deportes en vivo, próximos eventos y canales deportivos 24/7 del agregador Nuvio Live Sports, en la pestaña En vivo.",
   "author": "xuper-plugin",
   "icon": "icon.png",
   "homepage": "https://github.com/xuper-plugin/kino-plugin-nuvio-sports",
@@ -24,27 +24,35 @@
       "type": "text",
       "label": "Idiomas preferidos",
       "default": "Spanish",
-      "hint": "En inglés, separados por comas: Spanish, English, Portuguese"
+      "hint": "En inglés, separados por comas: Spanish, English, Portuguese",
+      "labelEn": "Preferred languages",
+      "hintEn": "In English, comma-separated: Spanish, English, Portuguese"
     },
     {
       "key": "sports",
       "type": "text",
       "label": "Deportes",
       "default": "all",
-      "hint": "all, o por comas: football, motorsport, tennis, basketball"
+      "hint": "all, o por comas: football, tennis, mma, golf… (ver README)",
+      "labelEn": "Sports",
+      "hintEn": "all, or comma-separated: football, tennis, mma, golf… (see README)"
     },
     {
       "key": "teams",
       "type": "text",
       "label": "Equipos favoritos",
-      "hint": "Separados por comas; suben en las listas"
+      "hint": "Separados por comas; suben en las listas",
+      "labelEn": "Favorite teams",
+      "hintEn": "Comma-separated; they rise in the lists"
     },
     {
       "key": "timezone",
       "type": "text",
       "label": "Zona horaria",
       "default": "UTC",
-      "hint": "Por ejemplo America/Bogota"
+      "hint": "Por ejemplo America/Bogota",
+      "labelEn": "Time zone",
+      "hintEn": "For example America/Bogota"
     }
   ]
 }

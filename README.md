@@ -12,10 +12,14 @@ En Kino: **Plugins ▸ Agregar un plugin ▸ Kino**, y pega la dirección de est
 
 ## Qué trae
 
-- **En vivo ahora**, **Fútbol**, **Motor** y **TV deportiva 24/7**, como categorías de En vivo, con búsqueda por nombre.
-- Elige la copia de cada evento según el idioma preferido (ajuste **Idiomas preferidos**) y, si el canal se corta, pasa
-  a la siguiente copia.
-- Ajustes: idiomas, deportes, equipos favoritos y zona horaria (se envían al addon como su configuración).
+- Categorías de **En vivo**: En vivo ahora, Próximos, Fútbol, Baloncesto, Tenis, Motor, MMA, Béisbol, Hockey, Rugby,
+  Fútbol americano, Golf, Críquet, Deporte universitario, Otros deportes y TV deportiva 24/7, con búsqueda por nombre.
+- Elige la copia de cada evento según el idioma preferido (ajuste **Idiomas preferidos**). Si abres el canal otra vez
+  poco después porque se cortó, sirve la siguiente copia y recuerda 10 minutos la que falló.
+- Ajustes: idiomas, deportes, equipos favoritos y zona horaria (se envían al addon como su configuración). En
+  **Deportes** pon `all` o una lista de: `football`, `basketball`, `tennis`, `motorsport`, `mma`, `baseball`, `hockey`,
+  `rugby`, `americanfootball`, `golf`, `cricket`, `college`, `other`; solo esas categorías aparecen.
+- Textos en español e inglés (necesita Kino 0.9.55 o posterior).
 
 ## Notas
 
