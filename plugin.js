@@ -117,10 +117,65 @@ function base() {
   return HOST + "/" + base64url(JSON.stringify(cfg));
 }
 
+// A call has about 20 s and kino.fetch waits 15 s by default, so one slow answer used up the whole call. Two attempts of 8 s
+// fit; only a network error, a timeout or a 5xx is worth asking again (the addon sits behind a tunnel that blinks).
+const FETCH_MS = 8000;
+
 async function getJson(path) {
-  const r = await kino.fetch(base() + path, { headers: { Accept: "application/json" } });
-  if (!r.ok) throw kino.error("unavailable", "Nuvio Sports answered " + r.status, { userMessage: t("unavailable") });
-  return r.json();
+  let last;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const r = await kino.fetch(base() + path, { headers: { Accept: "application/json" }, timeoutMs: FETCH_MS });
+      if (r.ok) return r.json();
+      last = kino.error("unavailable", "Nuvio Sports answered " + r.status, { userMessage: t("unavailable") });
+      if (r.status < 500 && r.status !== 429) break;
+    } catch (e) {
+      last = e;
+    }
+  }
+  throw last;
+}
+
+// A list page stays fresh as long as the addon says (2 min); when the addon does not answer, the last good page is served
+// for 30 min (24 h for the 24/7 networks, which do not change). The first page of the three main lists also survives a restart.
+const FRESH_MS = 2 * 60 * 1000;
+const STALE_MS = 30 * 60 * 1000;
+const STALE_NETWORKS_MS = 24 * 60 * 60 * 1000;
+const KEPT = ["live", "upcoming", "networks"];
+const PAGES = new Map();
+
+function savedPage(cat, skip) {
+  if (skip || !KEPT.includes(cat.id)) return null;
+  try {
+    const s = JSON.parse(kino.storage.get("page:" + cat.id) || "null");
+    return s && s.page ? s : null;
+  } catch {
+    return null;
+  }
+}
+
+async function catalogPage(cat, skip) {
+  const key = cat.id + ":" + skip;
+  const mem = PAGES.get(key);
+  if (mem && Date.now() - mem.at < FRESH_MS) return mem.page;
+  try {
+    const data = await getJson("/catalog/tv/" + cat.catalog + (skip ? "/skip=" + skip : "") + ".json");
+    const metas = Array.isArray(data.metas) ? data.metas : [];
+    const more = metas.length >= PAGE && skip + PAGE < MAX_SKIP;
+    const page = { items: metas.map((m) => channelOf(m, cat.id)), next: more ? String(skip + PAGE) : null };
+    PAGES.set(key, { at: Date.now(), page });
+    if (!skip && KEPT.includes(cat.id)) {
+      try { kino.storage.set("page:" + cat.id, JSON.stringify({ at: Date.now(), page }), { ttlMs: STALE_NETWORKS_MS }); } catch { /* storage full: not kept */ }
+    }
+    return page;
+  } catch (e) {
+    const old = mem || savedPage(cat, skip);
+    if (old && Date.now() - old.at < (cat.id === "networks" ? STALE_NETWORKS_MS : STALE_MS)) {
+      kino.log("served a saved page of " + cat.id + ": " + (e && e.code));
+      return old.page;
+    }
+    throw e;
+  }
 }
 
 function channelOf(m, categoryId) {
@@ -157,11 +212,7 @@ export async function liveChannels({ categoryId, cursor }) {
   const cat = CATEGORIES.find((c) => c.id === categoryId);
   if (!cat) return { items: [] };
   const skip = cursor ? Math.max(0, parseInt(cursor, 10) || 0) : 0;
-  const extra = skip ? "/skip=" + skip : "";
-  const data = await getJson("/catalog/tv/" + cat.catalog + extra + ".json");
-  const metas = Array.isArray(data.metas) ? data.metas : [];
-  const more = metas.length >= PAGE && skip + PAGE < MAX_SKIP;
-  return { items: metas.map((m) => channelOf(m, cat.id)), next: more ? String(skip + PAGE) : null };
+  return catalogPage(cat, skip);
 }
 
 export async function liveSearch({ query }) {
