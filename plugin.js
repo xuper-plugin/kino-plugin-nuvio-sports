@@ -110,22 +110,24 @@ function base() {
     replayFilter: "disabled",
     webStreams: "disabled", // embed pages cannot play in the player
     sports: setting("sports", "all").toLowerCase().replace(/\s+/g, ""),
-    sources: "none",
   };
   const teams = setting("teams", "");
   if (teams) cfg.teams = teams;
   return HOST + "/" + base64url(JSON.stringify(cfg));
 }
 
-// A call has about 20 s and kino.fetch waits 15 s by default, so one slow answer used up the whole call. Two attempts of 8 s
-// fit; only a network error, a timeout or a 5xx is worth asking again (the addon sits behind a tunnel that blinks).
-const FETCH_MS = 8000;
+// A call has about 20 s and kino.fetch waits 15 s by default, so one slow answer used up the whole call. Two attempts fit; only
+// a network error, a timeout or a 5xx is worth asking again (the addon sits behind a tunnel that blinks). The first time a
+// channel is asked the addon looks for its copies and can take 16 s: its streams get 12 s and then 6 s for a second ask, which
+// finds them already looked for.
+const FETCH_MS = [8000, 8000];
+const STREAM_MS = [12000, 6000];
 
-async function getJson(path) {
+async function getJson(path, budgets = FETCH_MS) {
   let last;
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
-      const r = await kino.fetch(base() + path, { headers: { Accept: "application/json" }, timeoutMs: FETCH_MS });
+      const r = await kino.fetch(base() + path, { headers: { Accept: "application/json" }, timeoutMs: budgets[attempt] });
       if (r.ok) return r.json();
       last = kino.error("unavailable", "Nuvio Sports answered " + r.status, { userMessage: t("unavailable") });
       if (r.status < 500 && r.status !== 429) break;
@@ -242,7 +244,7 @@ function languageRank(s, wanted) {
 
 export async function resolve(ref) {
   if (typeof ref !== "string" || !/^nuvio_sport_[\w.-]+$/.test(ref)) throw kino.error("not_found");
-  const data = await getJson("/stream/tv/" + encodeURIComponent(ref) + ".json");
+  const data = await getJson("/stream/tv/" + encodeURIComponent(ref) + ".json", STREAM_MS);
   const wanted = setting("languages", "Spanish").toLowerCase().split(",").map((x) => x.trim()).filter(Boolean);
   const streams = (data.streams || [])
     .filter((s) => typeof s.url === "string" && /^https?:\/\//.test(s.url))
